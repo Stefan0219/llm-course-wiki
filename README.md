@@ -1,63 +1,131 @@
 [English](./README.md) | [简体中文](./README_CN.md)
 
-# LLM Note Generator
+# video-to-notes
 
-A toolset designed to semi-automatically convert course presentation slides (PDF) and their corresponding lecture subtitles (TXT) into professional LaTeX course notes. By automatically extracting, converting, and building a strictly templated Prompt, this tool helps you leverage Large Language Models (like Gemini, ChatGPT) to quickly generate high-quality, structured notes.
+`video-to-notes` is a Codex skill and helper toolkit for turning lecture source material into professional Chinese LaTeX course notes and a compiled PDF.
 
-## Included Files
+The main workflow is:
 
-*   **`prompt.py`**: The core processing script. It handles converting the PDF into multiple images stored in a directory, reading the TXT subtitle content, generating a complex Prompt rich with instructions and a LaTeX template, and automatically copying it to your system clipboard.
-*   **`clean.sh`**: The archiving and cleanup script. After a note generation session is complete, it single-handedly archives the current directory's PDF, TXT materials, generated TEX file, and the image directory into a specifically named folder, keeping your workspace tidy.
+```text
+transcript TXT + slide PDF/PPT/PPTX -> slide images -> LaTeX notes -> rendered PDF
+```
+
+If a YouTube URL and `cookies.txt` are provided, the workflow can first download subtitles only, convert them to TXT, and then use the transcript with the local slides.
+
+## Repository Layout
+
+- `SKILL.md`: the Codex skill instructions. This is the source of truth for the writing, figure-selection, subtitle-download, LaTeX, and validation workflow.
+- `assets/notes-template.tex`: the default Chinese LaTeX note template, including a simple title page, highlight boxes, listings, figures, and TikZ.
+- `scripts/prepare_slide_images.py`: renders a slide PDF into `pic/page_N.png` images. It can auto-discover one PDF and one TXT in the current directory.
+- `scripts/srt_to_txt.py`: converts `.srt` or `.vtt` subtitles into a readable `.txt` transcript.
+- `clean.sh`: archives the current lecture workspace into a named folder after notes are generated.
+- `agents/openai.yaml`: a short agent-facing entry point for invoking the skill.
+- `demo/`: sample slide PDFs for testing the image-preparation helper.
+
+## Supported Inputs
+
+- Local transcript TXT plus local slide PDF.
+- Local transcript TXT plus local slide PPT/PPTX, after converting the deck to PDF.
+- YouTube URL or `url.txt` plus `cookies.txt`, then downloaded subtitles plus local slides.
+
+When there are multiple candidate transcripts or slide decks, choose the files explicitly instead of relying on auto-discovery.
 
 ## Prerequisites
 
-Before using, ensure you have the necessary dependencies installed:
+Python helpers use only the standard library except for optional PDF rendering support:
 
-1.  **Python Libraries**:
-    ```bash
-    pip install pdf2image pyperclip
-    ```
-2.  **System Dependencies (for PDF to image conversion)**:
-    For macOS users, you need to install `poppler`:
-    ```bash
-    brew install poppler
-    ```
-    For Ubuntu/Debian:
-    ```bash
-    sudo apt-get install poppler-utils
-    ```
-
-## Usage Guide
-
-### Step 1: Preparation
-Place the **single** course presentation PDF file and its corresponding text subtitle file (`.txt`) you want to process into the current working directory (where these scripts are located).
-> **Note**: Please ensure there is only *one* `.pdf` file and *one* `.txt` file in the directory; otherwise, the script will throw an error.
-
-### Step 2: Generate Prompt (Run `prompt.py`)
-Execute the following command in your terminal:
 ```bash
-python prompt.py
+python3 -m pip install pdf2image
 ```
-**Internal workflow of `prompt.py`**:
-1. Locates and identifies the PDF and TXT files.
-2. Checks for source image resources: If a `pic` folder doesn't exist, it automatically creates one and converts the PDF into PNG images page by page (this may take a few dozen seconds). If `pic` already exists, it reuses it to save time.
-3. Reads the subtitle content and merges it into the pre-configured structured Prompt template.
-4. Notifies you of successful generation and **automatically copies the result to your system clipboard**.
 
-### Step 3: Generate LaTeX Notes with LLM
-1. Open an AI tool that supports document parsing in your browser (e.g., Gemini Advanced or ChatGPT).
-2. **Upload your PDF lecture file** in the chat interface.
-3. **Paste (Cmd+V / Ctrl+V)** the Prompt from your clipboard into the text input box and send it to the AI model.
-4. The model will return beautifully typeset, complete `.tex` source code based on the instructions, including custom components (like "Core Concepts", "Supplementary Knowledge") and automatically referencing the corresponding images in the `pic/` directory.
-5. Copy this code locally and save it as a `.tex` file (e.g., `lesson1.tex`). As long as the `.tex` file is in the same directory level as the `pic/` folder, you can compile it into a PDF smoothly.
+Install Poppler so PDF pages can be rendered. On macOS:
 
-### Step 4: Archive and Cleanup (Run `clean.sh`)
-Once the notes for a lecture are generated, verified, and the `.tex` file is saved, you can use the cleanup script directly to move and package all related files from this session:
 ```bash
-chmod +x clean.sh   # You might need to grant execute permissions the first time you use it
-./clean.sh <new_folder_name>
+brew install poppler
+```
 
-# Example:
+On Ubuntu/Debian:
+
+```bash
+sudo apt-get install poppler-utils
+```
+
+For optional YouTube subtitle download, install `yt-dlp`:
+
+```bash
+python3 -m pip install yt-dlp
+```
+
+For final PDF compilation, install a LaTeX distribution with XeLaTeX and common packages such as `ctex`, `tcolorbox`, `listings`, `tikz`, and `pgfplots`.
+
+## Quick Start
+
+### 1. Prepare Source Files
+
+Place the lecture transcript and slide deck in the working directory. If the transcript is in subtitle format, convert it first:
+
+```bash
+python3 scripts/srt_to_txt.py lecture.srt transcript.txt
+```
+
+### 2. Render Slide Images
+
+If the working directory contains exactly one `.pdf` and one `.txt`, use auto-discovery:
+
+```bash
+python3 scripts/prepare_slide_images.py --auto
+```
+
+Otherwise, pass the slide PDF explicitly:
+
+```bash
+python3 scripts/prepare_slide_images.py --pdf slides.pdf --output pic
+```
+
+The helper writes images as `pic/page_1.png`, `pic/page_2.png`, and so on. If `pic/` already contains page images, it reuses them by default. Add `--force` to re-render.
+
+To test with a demo deck:
+
+```bash
+python3 scripts/prepare_slide_images.py --pdf demo/karpathy_llm_intro.pdf --output pic --force
+```
+
+### 3. Generate the Notes
+
+Ask Codex to use the `video-to-notes` skill with your transcript and slides. The skill will:
+
+1. inspect the sources and slide images,
+2. use `assets/notes-template.tex` as the base document,
+3. select or create teaching figures,
+4. write a complete Chinese note,
+5. compile the `.tex` file to PDF,
+6. validate that referenced assets exist and the PDF builds.
+
+For manual use, start from `assets/notes-template.tex`, replace the body block, and reference slide screenshots with the `pic/page_N.png` convention.
+
+### 4. Compile Manually When Needed
+
+```bash
+xelatex notes.tex
+xelatex notes.tex
+```
+
+Run XeLaTeX twice when the table of contents or references need a second pass.
+
+### 5. Archive a Finished Lecture
+
+```bash
+chmod +x clean.sh
 ./clean.sh Lec_01_Intro
 ```
-After running, the script will automatically create a `Lec_01_Intro` directory and archive the `pic/` directory as well as all `.pdf`, `.txt`, and `.tex` files into it. Your current directory will be clean and ready for preparing the generation of the next lecture.
+
+`clean.sh` creates the target folder and moves `pic/`, all root-level `*.pdf`, `*.txt`, and `*.tex` files into it. It does not currently move `.srt` or `.vtt` files.
+
+## Output Conventions
+
+- Notes are written in Chinese unless requested otherwise.
+- Slide screenshots should use `pic/page_N.png`; captions should explain the teaching role without adding source page numbers.
+- Figures should stay outside `importantbox`, `knowledgebox`, `warningbox`, and `dialoguebox`.
+- Each major section should end with `本章小结`.
+- The document should end with a top-level `总结与延伸` section.
+- Final delivery should include the generated `.tex`, compiled `.pdf`, and every referenced asset.

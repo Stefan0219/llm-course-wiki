@@ -1,0 +1,4 @@
+interface:
+  display_name: "video-to-notes"
+  short_description: "Render TXT and slides into Chinese notes PDF."
+  default_prompt: "Use $txt-ppt-video-render-pdf to turn my transcript TXT plus PPT/PDF slides into a high-quality Chinese LaTeX course note and compiled PDF; if I provide a YouTube URL and cookies.txt, download subtitles only and convert them to TXT first."
